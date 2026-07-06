@@ -1,0 +1,10 @@
+{
+  "id": "graph-search-sync",
+  "name": "Graph Search Sync",
+  "version": "1.2.0",
+  "minAppVersion": "1.0.0",
+  "description": "Applies your global search query to the graph view filter in real time and highlights hovered search results in the graph.",
+  "author": "aldaw",
+  "authorUrl": "https://github.com/aldaw",
+  "isDesktopOnly": false
+}

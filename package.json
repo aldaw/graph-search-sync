@@ -1,0 +1,16 @@
+{
+  "name": "graph-search-sync",
+  "version": "1.0.0",
+  "description": "Sync the global search query into the graph view filter",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.0",
+    "obsidian": "latest",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}
