@@ -4,6 +4,7 @@ import {
 	Plugin,
 	PluginSettingTab,
 	Setting,
+	TFile,
 	debounce,
 } from "obsidian";
 
@@ -13,6 +14,50 @@ interface GraphSearchSyncSettings {
 	clearOnEmpty: boolean;
 	debounceMs: number;
 	hoverHighlight: boolean;
+}
+
+interface SearchResultDomItem {
+	el: HTMLElement;
+}
+
+interface SearchView {
+	searchComponent?: {
+		inputEl: HTMLInputElement;
+		clearButtonEl?: HTMLElement;
+	};
+	containerEl?: HTMLElement;
+	dom?: {
+		el?: HTMLElement;
+		resultDomLookup?: Map<TFile, SearchResultDomItem>;
+	};
+}
+
+interface GraphNode {
+	id: string;
+}
+
+interface GraphRenderer {
+	nodeLookup: Record<string, GraphNode>;
+	mouseX: number | null;
+	mouseY: number | null;
+	highlightNode: GraphNode | null;
+	changed: () => void;
+}
+
+interface GraphSearchFilter {
+	inputEl?: HTMLInputElement;
+	setValue?: (value: string) => void;
+}
+
+interface GraphEngine {
+	filterOptions?: { search?: GraphSearchFilter };
+	updateSearch?: () => void;
+}
+
+interface GraphView {
+	renderer?: GraphRenderer;
+	dataEngine?: GraphEngine;
+	engine?: GraphEngine;
 }
 
 const DEFAULT_SETTINGS: GraphSearchSyncSettings = {
@@ -29,7 +74,7 @@ export default class GraphSearchSyncPlugin extends Plugin {
 	private attachedInput: HTMLInputElement | null = null;
 	private applyDebounced: (query: string) => void;
 	private hoveredResultEl: Element | null = null;
-	private highlightedRenderers = new Set<any>();
+	private highlightedRenderers = new Set<GraphRenderer>();
 
 	async onload() {
 		await this.loadSettings();
@@ -82,25 +127,21 @@ export default class GraphSearchSyncPlugin extends Plugin {
 
 	private getSearchInput(): HTMLInputElement | null {
 		const leaf = this.app.workspace.getLeavesOfType("search")[0];
-		const view = leaf?.view as any;
-		return (view?.searchComponent?.inputEl as HTMLInputElement) ?? null;
+		const view = leaf?.view as SearchView | undefined;
+		return view?.searchComponent?.inputEl ?? null;
 	}
 
 	private attachToSearch() {
 		const leaf = this.app.workspace.getLeavesOfType("search")[0];
-		const view = leaf?.view as any;
-		const input = view?.searchComponent?.inputEl as
-			| HTMLInputElement
-			| undefined;
+		const view = leaf?.view as SearchView | undefined;
+		const input = view?.searchComponent?.inputEl;
 		if (!input || input === this.attachedInput) return;
 		this.attachedInput = input;
 
 		this.registerDomEvent(input, "input", () => this.onQueryChanged());
 
 		// The search field's clear button does not fire an input event.
-		const clearBtn = view?.searchComponent?.clearButtonEl as
-			| HTMLElement
-			| undefined;
+		const clearBtn = view?.searchComponent?.clearButtonEl;
 		if (clearBtn) {
 			this.registerDomEvent(clearBtn, "click", () =>
 				this.onQueryChanged()
@@ -109,10 +150,7 @@ export default class GraphSearchSyncPlugin extends Plugin {
 
 		// Hovering a search result highlights the corresponding node in
 		// the graph (event delegation on the results container).
-		const container =
-			((view?.dom?.el as HTMLElement) ?? view?.containerEl) as
-				| HTMLElement
-				| undefined;
+		const container = view?.dom?.el ?? view?.containerEl;
 		if (container) {
 			this.registerDomEvent(container, "mouseover", (e: MouseEvent) =>
 				this.onResultHover(e, view)
@@ -123,7 +161,7 @@ export default class GraphSearchSyncPlugin extends Plugin {
 		}
 	}
 
-	private onResultHover(e: MouseEvent, searchView: any) {
+	private onResultHover(e: MouseEvent, searchView: SearchView | undefined) {
 		if (!this.settings.hoverHighlight) return;
 		const el =
 			(e.target as HTMLElement)?.closest?.(
@@ -145,9 +183,11 @@ export default class GraphSearchSyncPlugin extends Plugin {
 		this.clearGraphHighlights();
 	}
 
-	private fileForResultEl(searchView: any, el: Element): any {
-		const lookup: Map<any, any> | undefined =
-			searchView?.dom?.resultDomLookup;
+	private fileForResultEl(
+		searchView: SearchView | undefined,
+		el: Element
+	): TFile | null {
+		const lookup = searchView?.dom?.resultDomLookup;
 		if (!lookup) return null;
 		for (const [file, item] of lookup) {
 			if (item?.el === el) return file;
@@ -162,7 +202,7 @@ export default class GraphSearchSyncPlugin extends Plugin {
 
 		for (const type of types) {
 			for (const leaf of this.app.workspace.getLeavesOfType(type)) {
-				const renderer = (leaf.view as any)?.renderer;
+				const renderer = (leaf.view as GraphView)?.renderer;
 				const node = renderer?.nodeLookup?.[path];
 				if (!node) continue;
 				// The render loop clears the highlight when the last known
@@ -218,14 +258,12 @@ export default class GraphSearchSyncPlugin extends Plugin {
 
 		for (const type of types) {
 			for (const leaf of this.app.workspace.getLeavesOfType(type)) {
-				const view = leaf.view as any;
+				const view = leaf.view as GraphView;
 				// The graph view has no public API; the filter lives on
 				// the internal dataEngine (local graph: engine).
 				const engine = view?.dataEngine ?? view?.engine;
 				const search = engine?.filterOptions?.search;
-				const inputEl = search?.inputEl as
-					| HTMLInputElement
-					| undefined;
+				const inputEl = search?.inputEl;
 				if (inputEl) {
 					if (inputEl.value === query) continue;
 					inputEl.value = query;
@@ -241,7 +279,10 @@ export default class GraphSearchSyncPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const saved = (await this.loadData()) as
+			| Partial<GraphSearchSyncSettings>
+			| null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
 	}
 
 	async saveSettings() {
