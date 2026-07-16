@@ -2,6 +2,8 @@
 
 An [Obsidian](https://obsidian.md) plugin that connects the global search with the graph view: whatever you type into the search is applied to the graph filter in real time, so the graph always shows the same results as the search list. Hovering a search result highlights the corresponding node in the graph.
 
+![Graph Search Sync preview](media/demo.gif)
+
 ## Features
 
 - **Live filter sync** — typing in the global search applies the same query (slightly debounced) to the filter of every open graph view, as if you had typed it there yourself. Search operators like `tag:`, `path:`, or `file:` work the same way in both.
