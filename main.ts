@@ -7,6 +7,7 @@ import {
 	TFile,
 	debounce,
 } from "obsidian";
+import type { SettingDefinitionItem } from "obsidian";
 
 interface GraphSearchSyncSettings {
 	enabled: boolean;
@@ -298,6 +299,71 @@ class GraphSearchSyncSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	// Declarative settings for Obsidian 1.13+: used for rendering and for
+	// the settings search index.
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				name: "Sync enabled",
+				desc: "Automatically applies the global search query to the graph view filter.",
+				control: {
+					type: "toggle",
+					key: "enabled",
+					defaultValue: DEFAULT_SETTINGS.enabled,
+				},
+			},
+			{
+				name: "Also filter local graphs",
+				desc: "Additionally applies the search query to open local graph views.",
+				control: {
+					type: "toggle",
+					key: "includeLocalGraph",
+					defaultValue: DEFAULT_SETTINGS.includeLocalGraph,
+				},
+			},
+			{
+				name: "Highlight node on search result hover",
+				desc: "Hovering a search result in the list highlights the corresponding note in the graph.",
+				control: {
+					type: "toggle",
+					key: "hoverHighlight",
+					defaultValue: DEFAULT_SETTINGS.hoverHighlight,
+				},
+			},
+			{
+				name: "Clear graph filter when search is empty",
+				desc: "When the search query is cleared, the graph filter is cleared as well. If disabled, the last filter is kept.",
+				control: {
+					type: "toggle",
+					key: "clearOnEmpty",
+					defaultValue: DEFAULT_SETTINGS.clearOnEmpty,
+				},
+			},
+			{
+				name: "Debounce delay (ms)",
+				desc: "How long to wait after the last keystroke before updating the graph.",
+				control: {
+					type: "number",
+					key: "debounceMs",
+					defaultValue: DEFAULT_SETTINGS.debounceMs,
+					placeholder: "250",
+					min: 0,
+					validate: (value) =>
+						value >= 0 ? undefined : "Must be 0 or greater.",
+				},
+			},
+		];
+	}
+
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		Object.assign(this.plugin.settings, { [key]: value });
+		await this.plugin.saveSettings();
+		if (key === "enabled" && value === true) this.plugin.syncNow();
+		if (key === "debounceMs") this.plugin.rebuildDebounce();
+	}
+
+	// Fallback for Obsidian versions older than 1.13.0. Not called on 1.13+,
+	// where the tab is rendered from getSettingDefinitions() instead.
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
